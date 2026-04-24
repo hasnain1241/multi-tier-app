@@ -1,0 +1,114 @@
+---
+- name: Configure EC2 instance and install microk8s
+  hosts: app_servers
+  become: true
+  vars:
+    microk8s_channel: "1.28/stable"
+  tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - git
+          - snapd
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Install microk8s via snap
+      snap:
+        name: microk8s
+        classic: yes
+        channel: "{{ microk8s_channel }}"
+
+    - name: Add ubuntu user to microk8s group
+      user:
+        name: ubuntu
+        groups: microk8s
+        append: yes
+
+    - name: Wait for microk8s to be ready
+      command: microk8s status --wait-ready
+      timeout: 120
+
+    - name: Enable DNS addon
+      command: microk8s enable dns
+
+    - name: Enable Storage addon
+      command: microk8s enable storage
+
+    - name: Enable Ingress addon
+      command: microk8s enable ingress
+
+    - name: Create kubectl config directory
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Export microk8s kubeconfig
+      shell: microk8s config > /home/ubuntu/.kube/config
+      args:
+        creates: /home/ubuntu/.kube/config
+
+    - name: Set kubeconfig ownership
+      file:
+        path: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Create kubectl alias
+      lineinfile:
+        path: /home/ubuntu/.bashrc
+        line: "alias kubectl='microk8s kubectl'"
+        state: present
+
+    - name: Download ArgoCD CLI
+      get_url:
+        url: https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        dest: /usr/local/bin/argocd
+        mode: '0755'
+
+    - name: Create argocd namespace
+      shell: microk8s kubectl create namespace argocd --dry-run=client -o yaml | microk8s kubectl apply -f -
+
+    - name: Install ArgoCD
+      command: >
+        microk8s kubectl apply --server-side -n argocd -f
+        https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+    - name: Patch ArgoCD server service to NodePort
+      command: >
+        microk8s kubectl patch svc argocd-server -n argocd
+        -p '{"spec":{"type":"NodePort","ports":[]}}'
+      ignore_errors: yes
+
+    - name: Print setup complete message
+      debug:
+        msg: "EC2 instance configured successfully with microk8s and ArgoCD!"

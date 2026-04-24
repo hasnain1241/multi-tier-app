@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Multi-Tier App</title>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 40px; }
+    .status { color: green; font-size: 1.5em; }
+  </style>
+</head>
+<body>
+  <h1>Multi-Tier Application</h1>
+  <p class="status" id="status">Loading...</p>
+  <ul id="items"></ul>
+  <script>
+    const API = window.BACKEND_URL || 'http://localhost:3001';
+    fetch(`${API}/api/health`)
+      .then(r => r.json())
+      .then(d => document.getElementById('status').textContent = d.message);
+    fetch(`${API}/api/data`)
+      .then(r => r.json())
+      .then(d => {
+        const ul = document.getElementById('items');
+        d.items.forEach(i => {
+          const li = document.createElement('li');
+          li.textContent = i;
+          ul.appendChild(li);
+        });
+      });
+  </script>
+</body>
+</html>
