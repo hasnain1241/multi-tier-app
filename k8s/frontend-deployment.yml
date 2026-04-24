@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: hasnain1241/multi-tier-frontend:81252ca4f2dafaa684b65358f604809b01ab6a6d
+        image: hasnain1241/multi-tier-frontend:1741eac88c0288fb35780b792093541ce81cb4ba
         ports:
         - containerPort: 80
         resources:
