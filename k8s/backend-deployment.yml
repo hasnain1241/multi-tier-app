@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: hasnain1241/multi-tier-backend:bc791c8ff51884bc89f3876f06704752b461109c
+        image: hasnain1241/multi-tier-backend:9a65e03aa6f21deaa5817ee8a9968e56294d6331
         ports:
         - containerPort: 3001
         env:
