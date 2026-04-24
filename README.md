@@ -1,6 +1,17 @@
-# Multi-Tier Application Deployment
+# Market Community Place — Multi-Tier App Deployment
 
-Automated deployment pipeline for a multi-tier microservices application using Docker, Terraform, Ansible, Kubernetes (microk8s), GitHub Actions, and ArgoCD on AWS EC2.
+A community marketplace web application deployed via a fully automated GitOps pipeline on AWS using Docker, Terraform, Ansible, Kubernetes (microk8s), GitHub Actions, and ArgoCD.
+
+---
+
+## Application
+
+**Market Community Place** is a full-stack marketplace where users can:
+- Browse listings across categories (Electronics, Sports, Books, Furniture, Clothing, Other)
+- Filter by category
+- Post new listings with title, price, category, seller name, and description
+
+The frontend (Nginx) proxies all `/api/` requests to the backend (Node.js/Express) internally within the Kubernetes cluster — no hardcoded IPs or CORS issues.
 
 ---
 
@@ -13,7 +24,7 @@ Code Push
 GitHub Actions CI
     │  builds Docker images
     │  pushes to DockerHub
-    │  updates K8s manifests
+    │  updates K8s manifests with new image tags
     ▼
 ArgoCD (GitOps)
     │  detects manifest changes
@@ -21,15 +32,15 @@ ArgoCD (GitOps)
     ▼
 microk8s (Kubernetes on EC2)
     │
-    ├── Frontend (Nginx)   → NodePort 30080
-    └── Backend (Node.js)  → NodePort 30001
+    ├── Frontend (Nginx :30080)  ──proxy /api/──► Backend (Node.js :30001)
+    └── Backend (Node.js :30001)
 ```
 
 ### Technology Stack
 | Layer | Technology |
 |---|---|
-| Frontend | Nginx serving static HTML |
-| Backend | Node.js + Express API |
+| Frontend | Nginx serving static HTML, proxies /api/ to backend |
+| Backend | Node.js + Express REST API |
 | Containerization | Docker |
 | Infrastructure | AWS EC2 (t2.medium), VPC, Security Groups |
 | IaC | Terraform |
@@ -45,12 +56,12 @@ microk8s (Kubernetes on EC2)
 ```
 multi-tier-app/
 ├── backend/
-│   ├── server.js               # Express API
+│   ├── server.js               # Express API (listings, categories, health)
 │   ├── package.json
 │   └── Dockerfile              # node:18-alpine
 ├── frontend/
-│   ├── src/index.html          # Frontend page
-│   ├── nginx.conf              # Nginx config
+│   ├── src/index.html          # Marketplace UI
+│   ├── nginx.conf              # Nginx with /api/ proxy to backend-service
 │   └── Dockerfile              # nginx:alpine
 ├── terraform/
 │   ├── main.tf                 # VPC, Subnet, SG, EC2
@@ -72,9 +83,31 @@ multi-tier-app/
 
 ---
 
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | /api/health | Health check |
+| GET | /api/categories | List all categories |
+| GET | /api/listings | All listings (optional ?category=X filter) |
+| POST | /api/listings | Create a new listing |
+
+**POST /api/listings body:**
+```json
+{
+  "title": "Item Name",
+  "price": 50,
+  "category": "Electronics",
+  "seller": "Your Name",
+  "description": "Optional description"
+}
+```
+
+---
+
 ## Prerequisites
 
-Install the following tools on your local machine (Ubuntu/WSL):
+Install on your local machine (Ubuntu/WSL):
 
 ```bash
 # Git
@@ -103,7 +136,7 @@ aws configure   # Enter Access Key, Secret Key, region: us-east-1, output: json
 
 You also need:
 - AWS Account with IAM user (programmatic access)
-- GitHub Account
+- GitHub Account with a Personal Access Token (PAT) for pushing
 - DockerHub Account
 
 ---
@@ -112,20 +145,20 @@ You also need:
 
 1. Go to AWS Console → EC2 → Key Pairs → Create key pair
 2. Name: `project3-key`, Type: RSA, Format: `.pem`
-3. Save the `.pem` file and set permissions:
+3. Save the `.pem` file and copy it to WSL home:
 
 ```bash
+cp /mnt/c/Users/<YourUser>/Downloads/project3-key.pem ~/project3-key.pem
 chmod 400 ~/project3-key.pem
 ```
 
 ---
 
-## Phase 2 — Clone Repository and Create Structure
+## Phase 2 — Clone Repository
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/multi-tier-app.git
 cd multi-tier-app
-mkdir -p frontend/src backend terraform ansible k8s .github/workflows
 ```
 
 ---
@@ -142,8 +175,7 @@ cd ..
 ```
 
 Terraform creates:
-- Custom VPC (`10.0.0.0/16`)
-- Public subnet with internet gateway
+- Custom VPC (`10.0.0.0/16`) with internet gateway and public subnet
 - Security group (ports 22, 80, 3001, 30000-32767)
 - EC2 instance (t2.medium, Ubuntu 22.04, 30GB gp3)
 
@@ -158,13 +190,10 @@ Update `ansible/inventory.ini` with your EC2 IP:
 <EC2_IP> ansible_user=ubuntu ansible_ssh_private_key_file=~/project3-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 ```
 
-Wait 2-3 minutes after Terraform finishes, then run:
+Wait 2-3 minutes after Terraform finishes, then run **from the project root**:
 
 ```bash
-# Test connectivity
 ansible -i ansible/inventory.ini app_servers -m ping
-
-# Run full playbook
 ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
 ```
 
@@ -196,6 +225,12 @@ GitHub Actions will automatically:
 2. Build frontend Docker image → push to DockerHub
 3. Update image tags in `k8s/` manifests → commit back to repo
 
+**Note:** If push is rejected (remote has diverged due to CI commits), run:
+```bash
+git pull --rebase origin main
+git push origin main
+```
+
 ---
 
 ## Phase 6 — Configure ArgoCD
@@ -206,7 +241,7 @@ SSH into EC2:
 ssh -i ~/project3-key.pem ubuntu@<EC2_IP>
 ```
 
-Wait for ArgoCD pods to be ready:
+Wait for all ArgoCD pods to be Running:
 
 ```bash
 microk8s kubectl get pods -n argocd
@@ -218,11 +253,16 @@ Get the admin password:
 microk8s kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 
-Patch service to NodePort (if not already):
+Verify ArgoCD service is NodePort (Ansible sets this automatically):
+
+```bash
+microk8s kubectl get svc argocd-server -n argocd
+```
+
+If TYPE shows ClusterIP, patch it manually:
 
 ```bash
 microk8s kubectl patch svc argocd-server -n argocd -p '{"spec":{"type":"NodePort"}}'
-microk8s kubectl get svc argocd-server -n argocd   # note the NodePort
 ```
 
 Access ArgoCD UI: `https://<EC2_IP>:<NODEPORT>`
@@ -261,13 +301,15 @@ microk8s kubectl get deployments  # 2/2 READY for both
 ```
 
 Access in browser:
-- **Frontend:** `http://<EC2_IP>:30080`
-- **Backend:** `http://<EC2_IP>:30001/api/health`
+- **Frontend (Marketplace UI):** `http://<EC2_IP>:30080`
+- **Backend health check:** `http://<EC2_IP>:30001/api/health`
 
 Expected backend response:
 ```json
-{"status":"OK","message":"Backend is running!"}
+{"status":"OK","message":"Market Community Place API running!"}
 ```
+
+The frontend fetches categories and listings from the backend via nginx proxy (no external IP needed in the browser).
 
 ---
 
@@ -276,17 +318,17 @@ Expected backend response:
 Make a code change and push:
 
 ```bash
-sed -i "s/Backend is running!/Backend v2 is running!/" backend/server.js
+# Example: add a new sample listing to backend/server.js
 git add backend/server.js
-git commit -m "feat: update backend message to v2"
+git commit -m "feat: add new sample listing"
 git push origin main
 ```
 
 Watch the pipeline:
-1. GitHub Actions builds new Docker image (3-5 min)
-2. Manifest updated with new image tag
-3. ArgoCD detects change and auto-deploys
-4. Refresh `http://<EC2_IP>:30001/api/health` → shows `Backend v2 is running!`
+1. GitHub Actions builds new Docker images (3-5 min)
+2. Manifests updated with new image tags → committed back to repo
+3. ArgoCD detects the manifest change and auto-deploys
+4. New pods replace old ones — zero downtime rolling update
 
 ---
 
@@ -294,9 +336,9 @@ Watch the pipeline:
 
 | Service | Port |
 |---|---|
-| Frontend | 30080 |
+| Frontend (Marketplace UI) | 30080 |
 | Backend API | 30001 |
-| ArgoCD UI | 32443 (NodePort, varies) |
+| ArgoCD UI | NodePort (varies, check `kubectl get svc argocd-server -n argocd`) |
 | SSH | 22 |
 
 ---
