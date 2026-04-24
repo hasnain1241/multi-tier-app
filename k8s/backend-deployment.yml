@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: YOUR_DOCKERHUB_USERNAME/multi-tier-backend:latest
+        image: YOUR_DOCKERHUB_USERNAME/multi-tier-backend:352d602ad8de3e6fc7f8e33ca63e5af236871ff3
         ports:
         - containerPort: 3001
         env:
