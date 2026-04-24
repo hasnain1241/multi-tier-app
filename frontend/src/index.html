@@ -1,31 +1,247 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Multi-Tier App</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market Community Place</title>
   <style>
-    body { font-family: Arial; text-align: center; padding: 40px; }
-    .status { color: green; font-size: 1.5em; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f8; color: #333; }
+
+    header {
+      background: #1a73e8;
+      color: white;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header h1 { font-size: 1.5em; }
+    header span { font-size: 0.85em; opacity: 0.85; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+    .status-bar { text-align: center; padding: 8px; font-size: 0.85em; color: #555; margin-bottom: 16px; }
+    .status-bar b { color: #2e7d32; }
+
+    .categories { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+    .cat-btn {
+      padding: 8px 18px;
+      border: 2px solid #1a73e8;
+      background: white;
+      color: #1a73e8;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.9em;
+      transition: all 0.2s;
+    }
+    .cat-btn.active, .cat-btn:hover { background: #1a73e8; color: white; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .card-category { font-size: 0.75em; font-weight: 600; color: #1a73e8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .card-title { font-size: 1.1em; font-weight: 700; margin-bottom: 6px; }
+    .card-desc { font-size: 0.88em; color: #666; margin-bottom: 12px; line-height: 1.4; }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; }
+    .card-price { font-size: 1.2em; font-weight: 700; color: #2e7d32; }
+    .card-seller { font-size: 0.78em; color: #888; }
+
+    .post-section {
+      background: white;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 40px;
+    }
+    .post-section h2 { margin-bottom: 20px; color: #1a73e8; font-size: 1.2em; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-field { display: flex; flex-direction: column; }
+    label { font-size: 0.85em; font-weight: 600; color: #555; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95em;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #1a73e8; }
+    textarea { resize: vertical; min-height: 80px; }
+    button[type="submit"] {
+      margin-top: 14px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button[type="submit"]:hover { background: #1558b0; }
+
+    .no-results { grid-column: 1/-1; text-align: center; color: #888; padding: 40px; font-size: 1em; }
   </style>
 </head>
 <body>
-  <h1>Multi-Tier Application</h1>
-  <p class="status" id="status">Loading...</p>
-  <ul id="items"></ul>
-  <script>
-    const API = window.BACKEND_URL || 'http://localhost:3001';
-    fetch(`${API}/api/health`)
-      .then(r => r.json())
-      .then(d => document.getElementById('status').textContent = d.message);
-    fetch(`${API}/api/data`)
-      .then(r => r.json())
-      .then(d => {
-        const ul = document.getElementById('items');
-        d.items.forEach(i => {
-          const li = document.createElement('li');
-          li.textContent = i;
-          ul.appendChild(li);
-        });
+
+<header>
+  <h1>Market Community Place</h1>
+  <span id="api-status">Connecting...</span>
+</header>
+
+<div class="container">
+
+  <div class="status-bar">API Status: <b id="status-text">checking...</b></div>
+
+  <div class="categories" id="categories">
+    <button class="cat-btn active" onclick="filterCategory('All')">All</button>
+  </div>
+
+  <div class="grid" id="listings-grid">
+    <p class="no-results">Loading listings...</p>
+  </div>
+
+  <div class="post-section">
+    <h2>Post a Listing</h2>
+    <form id="post-form">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Title</label>
+          <input type="text" id="title" placeholder="What are you selling?" required>
+        </div>
+        <div class="form-field">
+          <label>Price ($)</label>
+          <input type="number" id="price" placeholder="0" min="0" required>
+        </div>
+        <div class="form-field">
+          <label>Category</label>
+          <select id="category" required>
+            <option value="">Select category</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Your Name</label>
+          <input type="text" id="seller" placeholder="Display name" required>
+        </div>
+        <div class="form-field full">
+          <label>Description</label>
+          <textarea id="description" placeholder="Describe your item..."></textarea>
+        </div>
+      </div>
+      <button type="submit">Post Listing</button>
+    </form>
+  </div>
+
+</div>
+
+<script>
+  const API = window.BACKEND_URL || 'http://localhost:3001';
+  let currentCategory = 'All';
+
+  fetch(`${API}/api/health`)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('api-status').textContent = d.message;
+      document.getElementById('status-text').textContent = d.message;
+    })
+    .catch(() => {
+      document.getElementById('api-status').textContent = 'API Offline';
+      document.getElementById('status-text').textContent = 'API Offline';
+    });
+
+  fetch(`${API}/api/categories`)
+    .then(r => r.json())
+    .then(cats => {
+      const container = document.getElementById('categories');
+      const select = document.getElementById('category');
+      cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = 'cat-btn';
+        btn.type = 'button';
+        btn.textContent = cat;
+        btn.onclick = () => filterCategory(cat);
+        container.appendChild(btn);
+
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        select.appendChild(opt);
       });
-  </script>
+    });
+
+  function loadListings(category = 'All') {
+    const url = category === 'All'
+      ? `${API}/api/listings`
+      : `${API}/api/listings?category=${encodeURIComponent(category)}`;
+    fetch(url)
+      .then(r => r.json())
+      .then(listings => {
+        const grid = document.getElementById('listings-grid');
+        if (listings.length === 0) {
+          grid.innerHTML = '<p class="no-results">No listings in this category yet.</p>';
+          return;
+        }
+        grid.innerHTML = listings.map(l => `
+          <div class="card">
+            <div class="card-category">${l.category}</div>
+            <div class="card-title">${l.title}</div>
+            <div class="card-desc">${l.description || 'No description provided.'}</div>
+            <div class="card-footer">
+              <span class="card-price">$${l.price}</span>
+              <span class="card-seller">by ${l.seller} &middot; ${l.posted}</span>
+            </div>
+          </div>
+        `).join('');
+      });
+  }
+
+  function filterCategory(cat) {
+    currentCategory = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => {
+      b.classList.toggle('active', b.textContent === cat);
+    });
+    loadListings(cat);
+  }
+
+  document.getElementById('post-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const body = {
+      title: document.getElementById('title').value,
+      price: document.getElementById('price').value,
+      category: document.getElementById('category').value,
+      seller: document.getElementById('seller').value,
+      description: document.getElementById('description').value,
+    };
+    fetch(`${API}/api/listings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    .then(r => r.json())
+    .then(() => {
+      e.target.reset();
+      loadListings(currentCategory);
+    });
+  });
+
+  loadListings();
+</script>
 </body>
 </html>
