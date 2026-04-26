@@ -1,4 +1,4 @@
-# Market Community Place — Multi-Tier App Deployment
+# Market Community Place - Multi-Tier App Deployment
 
 A community marketplace web application deployed via a fully automated GitOps pipeline on AWS using Docker, Terraform, Ansible, Kubernetes (microk8s), GitHub Actions, and ArgoCD.
 
@@ -11,7 +11,7 @@ A community marketplace web application deployed via a fully automated GitOps pi
 - Filter by category
 - Post new listings with title, price, category, seller name, and description
 
-The frontend (Nginx) proxies all `/api/` requests to the backend (Node.js/Express) internally within the Kubernetes cluster — no hardcoded IPs or CORS issues.
+The frontend (Nginx) proxies all `/api/` requests to the backend (Node.js/Express) internally within the Kubernetes cluster - no hardcoded IPs or CORS issues.
 
 ---
 
@@ -141,7 +141,7 @@ You also need:
 
 ---
 
-## Phase 1 — Create EC2 Key Pair
+## Phase 1 - Create EC2 Key Pair
 
 1. Go to AWS Console → EC2 → Key Pairs → Create key pair
 2. Name: `project3-key`, Type: RSA, Format: `.pem`
@@ -154,7 +154,7 @@ chmod 400 ~/project3-key.pem
 
 ---
 
-## Phase 2 — Clone Repository
+## Phase 2 - Clone Repository
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/multi-tier-app.git
@@ -163,7 +163,7 @@ cd multi-tier-app
 
 ---
 
-## Phase 3 — Provision Infrastructure with Terraform
+## Phase 3 - Provision Infrastructure with Terraform
 
 ```bash
 cd terraform
@@ -181,7 +181,7 @@ Terraform creates:
 
 ---
 
-## Phase 4 — Configure EC2 with Ansible
+## Phase 4 - Configure EC2 with Ansible
 
 Update `ansible/inventory.ini` with your EC2 IP:
 
@@ -201,7 +201,7 @@ The playbook installs: Docker, microk8s (1.28/stable), ArgoCD, and enables DNS/S
 
 ---
 
-## Phase 5 — Build and Push Docker Images (CI)
+## Phase 5 - Build and Push Docker Images (CI)
 
 ### Set GitHub Secrets
 
@@ -233,7 +233,7 @@ git push origin main
 
 ---
 
-## Phase 6 — Configure ArgoCD
+## Phase 6 - Configure ArgoCD
 
 SSH into EC2:
 
@@ -286,11 +286,11 @@ In ArgoCD UI → New App:
 | Cluster URL | `https://kubernetes.default.svc` |
 | Namespace | `default` |
 
-Click **Create** — ArgoCD will sync and deploy all K8s manifests automatically.
+Click **Create** - ArgoCD will sync and deploy all K8s manifests automatically.
 
 ---
 
-## Phase 7 — Verify Deployment
+## Phase 7 - Verify Deployment
 
 SSH into EC2 and check:
 
@@ -313,7 +313,7 @@ The frontend fetches categories and listings from the backend via nginx proxy (n
 
 ---
 
-## Phase 8 — Test Full CI/CD Pipeline
+## Phase 8 - Test Full CI/CD Pipeline
 
 Make a code change and push:
 
@@ -328,7 +328,7 @@ Watch the pipeline:
 1. GitHub Actions builds new Docker images (3-5 min)
 2. Manifests updated with new image tags → committed back to repo
 3. ArgoCD detects the manifest change and auto-deploys
-4. New pods replace old ones — zero downtime rolling update
+4. New pods replace old ones - zero downtime rolling update
 
 ---
 
